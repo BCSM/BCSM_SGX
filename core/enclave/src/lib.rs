@@ -39,64 +39,45 @@ extern crate sgx_tcrypto;
 extern crate sgx_tstd as std;
 
 use sgx_types::*;
+use sgx_types::marker::ContiguousMemory;
 use sgx_tcrypto::*;
 use std::vec::Vec;
 use std::slice;
 use std::ptr;
 
-/// A Ecall function takes a string and output its SHA256 digest.
-///
-/// # Parameters
-///
-/// **input_str**
-///
-/// A raw pointer to the string to be calculated.
-///
-/// **some_len**
-///
-/// An unsigned int indicates the length of input string
-///
-/// **hash**
-///
-/// A const reference to [u8;32] array, which is the destination buffer which contains the SHA256 digest, caller allocated.
-///
-/// # Return value
-///
-/// **SGX_SUCCESS** on success. The SHA256 digest is stored in the destination buffer.
-///
-/// # Requirements
-///
-/// Caller allocates the input buffer and output buffer.
-///
-/// # Errors
-///
-/// **SGX_ERROR_INVALID_PARAMETER**
-///
-/// Indicates the parameter is invalid
+#[derive(Copy, Clone, Default, Debug)]
+struct RandData {
+    key: u32,
+    rand: [u8; 16],
+}
+
+unsafe impl ContiguousMemory for RandData {}
+
 #[no_mangle]
-pub extern "C" fn calc_sha256(input_str: *const u8,
-                              some_len: usize,
-                              hash: &mut [u8;32]) -> sgx_status_t {
-
-    println!("calc_sha256 invoked!");
-
-    // First, build a slice for input_str
-    let input_slice = unsafe { slice::from_raw_parts(input_str, some_len) };
-
-    // slice::from_raw_parts does not guarantee the length, we need a check
-    if input_slice.len() != some_len {
-        return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+pub extern "C" fn ecc_keygen(pk_gx: &mut [u8; SGX_ECP256_KEY_SIZE],
+                             pk_gy: &mut [u8; SGX_ECP256_KEY_SIZE],
+                             sk: &mut [u8; SGX_ECP256_KEY_SIZE]) -> sgx_status_t {
+    println!("ecc_keygen invoked!");
+    let ecc_state = SgxEccHandle::new();
+    let res = ecc_state.open();
+    match res {
+        Err(x) => {
+            return x;
+        }
+        Ok(()) => {
+        }
     }
 
-    println!("Input string len = {}, input len = {}", input_slice.len(), some_len);
-
-    // Second, convert the vector to a slice and calculate its SHA256
-    let result = rsgx_sha256_slice(&input_slice);
-
-    // Third, copy back the result
-    match result {
-        Ok(output_hash) => *hash = output_hash,
-        Err(x) => return x
+    //    let (prv_key, pub_key) = try!(ecc_state.create_key_pair());
+    let res = ecc_state.create_key_pair();
+    //    let (prv_key, pub_key): (sgx_ec256_private_t, sgx_ec256_public_t);
+    match res {
+        Ok((prv_key, pub_key)) => {
+            *pk_gx = pub_key.gx;
+            *pk_gy = pub_key.gy;
+            *sk = prv_key.r;
+        }
+        Err(e) => return e
     }
 
     sgx_status_t::SGX_SUCCESS
@@ -145,6 +126,7 @@ pub extern "C" fn calc_sha256(input_str: *const u8,
 /// The caller should allocate the ciphertext buffer. This buffer should be
 /// at least same length as plaintext buffer. The caller should allocate the
 /// mac buffer, at least 16 bytes.
+
 #[no_mangle]
 pub extern "C" fn aes_gcm_128_encrypt(key: &[u8;16],
                                       plaintext: *const u8,
@@ -152,7 +134,6 @@ pub extern "C" fn aes_gcm_128_encrypt(key: &[u8;16],
                                       iv: &[u8;12],
                                       ciphertext: *mut u8,
                                       mac: &mut [u8;16]) -> sgx_status_t {
-
     println!("aes_gcm_128_encrypt invoked!");
 
     // First, we need slices for input

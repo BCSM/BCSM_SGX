@@ -37,9 +37,13 @@ enclave {
     trusted {
         /* define ECALLs here. */
 
-        public sgx_status_t calc_sha256([in, size=len] const uint8_t* input_str,
+        /* public sgx_status_t calc_sha256([in, size=len] const uint8_t* input_str,
                                         size_t len,
-                                        [out] uint8_t hash[32]);
+                                        [out] uint8_t hash[32]); */
+
+        public sgx_status_t ecc_keygen([out] uint8_t pk_gx[32],
+                                       [out] uint8_t pk_gy[32],
+                                       [out] uint8_t sk[32]);
 
         public sgx_status_t aes_gcm_128_encrypt([in] uint8_t key[16],
                                                 [in, size=len] const uint8_t* plaintext,
@@ -55,10 +59,10 @@ enclave {
                                                 [in] uint8_t mac[16],
                                                 [out, size=len] uint8_t* plaintext);
 
-        public sgx_status_t aes_cmac([in, size=len] const uint8_t* text,
+        /* public sgx_status_t aes_cmac([in, size=len] const uint8_t* text,
                                      size_t len,
                                      [in] uint8_t key[16],
-                                     [out] uint8_t cmac[16]);
+                                     [out] uint8_t cmac[16]); */
 
     };
 
