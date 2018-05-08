@@ -234,28 +234,18 @@ int SGX_CDECL main(int argc, char *argv[])
         return -1;
     }
 
-    uint8_t plaintext[16] = {'c', 'w', 'k', '|', '|', 'c', 'v', 's'};
-    uint8_t aes_gcm_key[16] = {'c', 'w', 'k', '1', '9', '9', '5'};
-    uint8_t rx[200] = {1};
-    uint32_t inv[3] = {0};
-    //printf("%d %d %d\n", inv[0], inv[1], inv[2]);
+    printf("[+] Starting ecc key generation\n");
+    uint8_t ecc_pk_gx[32] = {0};
+    uint8_t ecc_pk_gy[32] = {0};
+    uint8_t ecc_sk[32] = {0};
 
-    //printf("%02x\n", aes_gcm_iv[1]);
-
-    printf("[+] doctor_generate_rx args prepared!\n");
-    sgx_ret = doctor_generate_rx(global_eid,
-                                 &enclave_ret,
-                                 aes_gcm_key,
-                                 plaintext,
-                                 16,
-                                 //aes_gcm_iv,
-                                 rx,
-                                 200,
-                                 inv,
-                                 20);
-    printf("[+] rx returned from enclave!\n");
-
-    //printf("%02x\n", aes_gcm_iv[1]);
+    printf("[+] ecc_keygen args prepared!\n");
+    sgx_ret = ecc_keygen(global_eid,
+                         &enclave_ret,
+                         ecc_pk_gx,
+                         ecc_pk_gy,
+                         ecc_sk);
+    printf("[+] ecc_keygen returned from enclave!\n");
 
     if(sgx_ret != SGX_SUCCESS) {
         print_error_message(sgx_ret);
@@ -267,26 +257,102 @@ int SGX_CDECL main(int argc, char *argv[])
         return -1;
     }
 
-    printf("%d %d %d\n", inv[0], inv[1], inv[2]);
-    printf("[+] rx's iv for aes cipher is: ");
-    for(i = 0; i < inv[0]; i ++) {
-        //printf("%d %d\n", i, inv[0]);
-        printf("%02x", rx[i]);
+    printf("[+] ecc_pk_gx is: ");
+    for(i = 0; i < 32; i ++) {
+        printf("0x%02x, ", ecc_pk_gx[i]);
     }
     printf("\n");
 
-    printf("[+] rx's ciphertext for aes cipher is: ");
-    // printf("%d\n", inv[1]);
-    for(i = inv[0]; i < inv[1]; i ++) {
-        printf("%02x", rx[i]);
+    printf("[+] ecc_pk_gy is: ");
+    for(i = 0; i < 32; i ++) {
+        printf("0x%02x, ", ecc_pk_gy[i]);
     }
     printf("\n");
 
-    printf("[+] rx's mac for aes cipher is: ");
-    for(i = inv[1]; i < inv[2]; i ++) {
-        printf("%02x", rx[i]);
+    printf("[+] ecc_sk is:    ");
+    for(i = 0; i < 32; i ++) {
+        printf("0x%02x, ", ecc_sk[i]);
     }
     printf("\n");
+
+
+    // AES-GCM-128 test case comes from
+    // http://csrc.nist.gov/groups/ST/toolkit/BCM/documents/proposedmodes/gcm/gcm-revised-spec.pdf
+    // Test case 2
+
+    printf("[+] Starting aes-gcm-128 encrypt calculation\n");
+    uint8_t aes_gcm_plaintext[16] = {'c', 'w', 'k'};
+    uint8_t aes_gcm_key[16] = {0};
+    uint8_t aes_gcm_iv[12] = {0};
+    uint8_t aes_gcm_ciphertext[16] = {0};
+    uint8_t aes_gcm_mac[16] = {0};
+
+    printf("[+] aes-gcm-128 args prepared!\n");
+//    printf("[+] aes-gcm-128 expected ciphertext: %s\n",
+//           "0388dace60b6a392f328c2b971b2fe78");
+    sgx_ret = aes_gcm_128_encrypt(global_eid,
+                                  &enclave_ret,
+                                  aes_gcm_key,
+                                  aes_gcm_plaintext,
+                                  16,
+                                  aes_gcm_iv,
+                                  aes_gcm_ciphertext,
+                                  aes_gcm_mac);
+
+    printf("[+] aes-gcm-128 returned from enclave!\n");
+
+    if(sgx_ret != SGX_SUCCESS) {
+        print_error_message(sgx_ret);
+        return -1;
+    }
+
+    if(enclave_ret != SGX_SUCCESS) {
+        print_error_message(enclave_ret);
+        return -1;
+    }
+
+    printf("[+] aes-gcm-128 ciphertext is: ");
+    for(i = 0; i < 16; i ++) {
+        printf("%02x", aes_gcm_ciphertext[i]);
+    }
+    printf("\n");
+
+    printf("[+] aes-gcm-128 result mac is: ");
+    for(i = 0; i < 16; i ++) {
+        printf("%02x", aes_gcm_mac[i]);
+    }
+    printf("\n");
+
+    printf("[+] Starting aes-gcm-128 decrypt calculation\n");
+    printf("[+] aes-gcm-128 expected plaintext: %s", aes_gcm_plaintext);
+
+    uint8_t aes_gcm_decrypted_text[16] = {0};
+    sgx_ret = aes_gcm_128_decrypt(global_eid,
+                                  &enclave_ret,
+                                  aes_gcm_key,
+                                  aes_gcm_ciphertext,
+                                  16,
+                                  aes_gcm_iv,
+                                  aes_gcm_mac,
+                                  aes_gcm_decrypted_text);
+
+    if(sgx_ret != SGX_SUCCESS) {
+        print_error_message(sgx_ret);
+        return -1;
+    }
+    if(enclave_ret != SGX_SUCCESS) {
+        print_error_message(enclave_ret);
+        return -1;
+    }
+
+    printf("[+] aes-gcm-128 decrypted plaintext is: ");
+    for(i = 0; i < 16; i ++) {
+        //printf("%02x", aes_gcm_decrypted_text[i]);
+        printf("%c", aes_gcm_decrypted_text[i]);
+    }
+    printf("\n");
+
+    printf("[+] aes-gcm-128 decrypt complete \n");
 
     /* Destroy the enclave */
     sgx_destroy_enclave(global_eid);

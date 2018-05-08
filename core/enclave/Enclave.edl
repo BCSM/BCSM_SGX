@@ -45,6 +45,17 @@ enclave {
                                        [out] uint8_t pk_gy[32],
                                        [out] uint8_t sk[32]);
 
+        public sgx_status_t doctor_generate_rx([in] uint8_t key[16],
+                                               [in, size=len] const uint8_t* plaintext,
+                                               size_t len,
+                                               //[in, out] uint8_t iv[12],
+                                               //[out, size=rxlen] uint8_t* rx,
+                                               [out] uint8_t rx[200],
+                                               size_t rxlen,
+                                               //[out, size=invlen] uint32_t* inv,
+                                               [out] uint32_t inv[20],
+                                               size_t invlen);
+
         public sgx_status_t aes_gcm_128_encrypt([in] uint8_t key[16],
                                                 [in, size=len] const uint8_t* plaintext,
                                                 size_t len,
