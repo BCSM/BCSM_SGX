@@ -95,28 +95,17 @@ pub extern "C" fn ecc_keygen(pk_gx: &mut [u8; SGX_ECP256_KEY_SIZE],
 pub extern "C" fn doctor_generate_rx(key: &[u8;16],
                                      plaintext: *const u8,
                                      text_len: usize,
-                                     //iv: &[u8;12],
-                                     //rx: *mut u8,
-                                     rx: &mut [u8;200],
-                                     _rxlen: usize,
-                                     //inv: *mut u32,
-                                     inv: &mut [u32;20],
-                                     _invlen: usize) -> sgx_status_t {
-
-
-//    let mut rx_vec: Vec<u8> = vec![0; _rxlen];
-    let mut rx_cnt: usize = 0;
-    let mut rx_pos: u32 = 0;
-//    let mut inv_vec: Vec<u32> = vec![0; invlen];
-    let mut inv_cnt: usize = 0;
-    let mut iv: [u8;SGX_AESGCM_IV_SIZE] = [0; SGX_AESGCM_IV_SIZE];
-
+                                     patient_iv: &mut [u8;12],
+                                     patient_ciphertext: *mut u8,
+                                     patient_mac: &mut [u8;16]) -> sgx_status_t {
+    {
+    let mut iv_array: [u8;SGX_AESGCM_IV_SIZE] = [0; SGX_AESGCM_IV_SIZE];
     println!("aes_gcm_128_encrypt using PatientID started!");
     let mut rand = match StdRng::new() {
         Ok(rng) => rng,
         Err(_) => { return sgx_status_t::SGX_ERROR_UNEXPECTED; },
     };
-    rand.fill_bytes(&mut iv);
+    rand.fill_bytes(&mut iv_array);
 
     let plaintext_slice = unsafe { slice::from_raw_parts(plaintext, text_len) };
     let mut ciphertext_vec: Vec<u8> = vec![0; text_len];
@@ -133,7 +122,7 @@ pub extern "C" fn doctor_generate_rx(key: &[u8;16],
 
     let result = rsgx_rijndael128GCM_encrypt(key,
                                              &plaintext_slice,
-                                             &iv,
+                                             &iv_array,
                                              &aad_array,
                                              ciphertext_slice,
                                              &mut mac_array);
@@ -145,59 +134,68 @@ pub extern "C" fn doctor_generate_rx(key: &[u8;16],
             return x;
         }
         Ok(()) => {
-            //println!("0");
-            /*for x in iv.iter() {
-                rx[rx_cnt] = *x;
-                println!("{}", rx[rx_cnt]);
-                rx_cnt = rx_cnt + 1;
-                rx_pos = rx_pos + 1;
+            unsafe{
+                ptr::copy_nonoverlapping(ciphertext_slice.as_ptr(),
+                                         patient_ciphertext,
+                                         text_len);
             }
-            inv[inv_cnt] = rx_pos;
-            inv_cnt = inv_cnt + 1;*/
-
-            //println!("1");
-            /*for x in ciphertext_vec {
-                rx[rx_cnt] = x;
-                println!("{}", x);
-                rx_cnt = rx_cnt + 1;
-                rx_pos = rx_pos + 1;
-            }
-            inv[inv_cnt] = rx_pos;
-            inv_cnt = inv_cnt + 1;*/
-
-            //println!("2");
-            for x in mac_array.iter() {
-                rx[rx_cnt] = *x;
-                rx_cnt = rx_cnt + 1;
-                rx_pos = rx_pos + 1;
-            }
-            inv[inv_cnt] = rx_pos;
-            inv_cnt = inv_cnt + 1;
+            *patient_iv = iv_array;
+            *patient_mac = mac_array;
         }
     }
+    }
 
-    // println!("{0}, {1}", rx_cnt, inv_cnt);
-    // println!("{0}, {1}", rx_vec.len(), inv_vec.len());
+    sgx_status_t::SGX_SUCCESS
+}
 
-    /*unsafe{
-        let rx_slice = &mut rx_vec[..];
-        let inv_slice = &mut inv_vec[..];
-        println!("{:?}", inv_slice[1]);
-        println!("copy");
-        ptr::copy_nonoverlapping(rx_slice.as_ptr(),
-                                 rx,
-                                 rx_cnt);
-        println!("copy2");
-        ptr::copy_nonoverlapping(inv_slice.as_ptr(),
-                                 inv,
-                                 inv_cnt);
-        println!("finish");
+#[no_mangle]
+pub extern "C" fn pharmacy_decode_rx(key: &[u8;16],
+                                     ciphertext: *const u8,
+                                     text_len: usize,
+                                     iv: &[u8;12],
+                                     mac: &[u8;16],
+                                     plaintext: *mut u8) -> sgx_status_t {
+    println!("pharmacy_decode_rx invoked!");
 
-        for x in inv {
-            println!("{}", x);
+    // First, for data with unknown length, we use vector as builder.
+    let ciphertext_slice = unsafe { slice::from_raw_parts(ciphertext, text_len) };
+    let mut plaintext_vec: Vec<u8> = vec![0; text_len];
+
+    // Second, for data with known length, we use array with fixed length.
+    let aad_array: [u8; 0] = [0; 0];
+
+    if ciphertext_slice.len() != text_len {
+        return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+    }
+
+    let plaintext_slice = &mut plaintext_vec[..];
+    println!("pharmacy_decode_rx prepared! {}, {}",
+              ciphertext_slice.len(),
+              plaintext_slice.len());
+
+    // After everything has been set, call API
+    let result = rsgx_rijndael128GCM_decrypt(key,
+                                             &ciphertext_slice,
+                                             iv,
+                                             &aad_array,
+                                             mac,
+                                             plaintext_slice);
+
+    println!("rsgx calling returned!");
+
+    // Match the result and copy result back to normal world.
+    match result {
+        Err(x) => {
+            return x;
         }
-    }*/
-    // println!("{}", rx[1]);
+        Ok(()) => {
+            unsafe {
+                ptr::copy_nonoverlapping(plaintext_slice.as_ptr(),
+                                         plaintext,
+                                         text_len);
+            }
+        }
+    }
 
     sgx_status_t::SGX_SUCCESS
 }

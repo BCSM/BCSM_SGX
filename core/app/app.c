@@ -234,25 +234,22 @@ int SGX_CDECL main(int argc, char *argv[])
         return -1;
     }
 
+    printf("[+] doctor_generate_rx started!\n");
     uint8_t plaintext[16] = {'c', 'w', 'k', '|', '|', 'c', 'v', 's'};
-    uint8_t aes_gcm_key[16] = {'c', 'w', 'k', '1', '9', '9', '5'};
-    uint8_t rx[200] = {1};
-    uint32_t inv[3] = {0};
-    //printf("%d %d %d\n", inv[0], inv[1], inv[2]);
-
-    //printf("%02x\n", aes_gcm_iv[1]);
+    uint8_t patientID[16] = {'c', 'w', 'k', '1', '9', '9', '5'};
+    uint8_t patientInfo_aes_gcm_iv[12] = {0};
+    uint8_t patientInfo_aes_gcm_ciphertext[16] = {0};
+    uint8_t patientInfo_aes_gcm_mac[16] = {0};
 
     printf("[+] doctor_generate_rx args prepared!\n");
     sgx_ret = doctor_generate_rx(global_eid,
                                  &enclave_ret,
-                                 aes_gcm_key,
+                                 patientID,
                                  plaintext,
                                  16,
-                                 //aes_gcm_iv,
-                                 rx,
-                                 200,
-                                 inv,
-                                 20);
+                                 patientInfo_aes_gcm_iv,
+                                 patientInfo_aes_gcm_ciphertext,
+                                 patientInfo_aes_gcm_mac);
     printf("[+] rx returned from enclave!\n");
 
     //printf("%02x\n", aes_gcm_iv[1]);
@@ -267,26 +264,53 @@ int SGX_CDECL main(int argc, char *argv[])
         return -1;
     }
 
-    printf("%d %d %d\n", inv[0], inv[1], inv[2]);
-    printf("[+] rx's iv for aes cipher is: ");
-    for(i = 0; i < inv[0]; i ++) {
-        //printf("%d %d\n", i, inv[0]);
-        printf("%02x", rx[i]);
+    printf("[+] rx's iv for patientInfo is: ");
+    for(i = 0; i < 12; i ++) {
+        printf("%02x", patientInfo_aes_gcm_iv[i]);
     }
     printf("\n");
 
-    printf("[+] rx's ciphertext for aes cipher is: ");
-    // printf("%d\n", inv[1]);
-    for(i = inv[0]; i < inv[1]; i ++) {
-        printf("%02x", rx[i]);
+    printf("[+] rx's ciphertext for patientInfo is: ");
+    for(i = 0; i < 16; i ++) {
+        printf("%02x", patientInfo_aes_gcm_ciphertext[i]);
     }
     printf("\n");
 
-    printf("[+] rx's mac for aes cipher is: ");
-    for(i = inv[1]; i < inv[2]; i ++) {
-        printf("%02x", rx[i]);
+    printf("[+] rx's mac for patientInfo is: ");
+    for(i = 0; i < 16; i ++) {
+        printf("%02x", patientInfo_aes_gcm_mac[i]);
     }
     printf("\n");
+    printf("[+] doctor_generate_rx decrypt complete \n");
+
+
+    printf("[+] Starting pharmacy_decode_rx decrypt calculation\n");
+    uint8_t pharmacy_aes_gcm_decrypted_text[16] = {0};
+    sgx_ret = aes_gcm_128_decrypt(global_eid,
+                                  &enclave_ret,
+                                  patientID,
+                                  patientInfo_aes_gcm_ciphertext,
+                                  16,
+                                  patientInfo_aes_gcm_iv,
+                                  patientInfo_aes_gcm_mac,
+                                  pharmacy_aes_gcm_decrypted_text);
+
+    if(sgx_ret != SGX_SUCCESS) {
+        print_error_message(sgx_ret);
+        return -1;
+    }
+    if(enclave_ret != SGX_SUCCESS) {
+        print_error_message(enclave_ret);
+        return -1;
+    }
+
+    printf("[+] rx plaintext is: ");
+    for(i = 0; i < 16; i ++) {
+        printf("%c", pharmacy_aes_gcm_decrypted_text[i]);
+    }
+    printf("\n");
+
+    printf("[+] pharmacy_decode_rx decrypt complete \n");
 
     /* Destroy the enclave */
     sgx_destroy_enclave(global_eid);
