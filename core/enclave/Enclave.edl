@@ -45,6 +45,11 @@ enclave {
                                        [out] uint8_t pk_gy[32],
                                        [out] uint8_t sk[32]);
 
+         public sgx_status_t doctor_ecc_keygen([out] uint8_t pk_gx[32],
+                                               [out] uint8_t pk_gy[32],
+                                               [out, size=sealed_log_size] uint8_t* sealed_log,
+                                               uint32_t sealed_log_size );
+
         public sgx_status_t doctor_generate_rx([in] uint8_t key[16],
                                                [in, size=len] const uint8_t* plaintext,
                                                size_t len,
@@ -60,6 +65,13 @@ enclave {
                                                 [out] uint8_t mac[16]);
 
         public sgx_status_t aes_gcm_128_decrypt([in] uint8_t key[16],
+                                                [in, size=len] const uint8_t* ciphertext,
+                                                size_t len,
+                                                [in] uint8_t iv[12],
+                                                [in] uint8_t mac[16],
+                                                [out, size=len] uint8_t* plaintext);
+
+        public sgx_status_t pharmacy_decode_rx([in] uint8_t key[16],
                                                 [in, size=len] const uint8_t* ciphertext,
                                                 size_t len,
                                                 [in] uint8_t iv[12],

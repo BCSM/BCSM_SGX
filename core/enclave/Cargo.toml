@@ -15,6 +15,7 @@ sgx_types = { path = "../../../sgx_types" }
 sgx_tstd = { path = "../../../sgx_tstd" }
 sgx_tcrypto = { path = "../../../sgx_tcrypto" }
 sgx_rand = { path = "../../../sgx_rand" }
+sgx_tseal = { path = "../../../sgx_tseal" }
 
 [dependencies]
 sgx_rand_derive = { path = "../../../sgx_rand_derive" }

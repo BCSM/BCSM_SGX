@@ -34,6 +34,7 @@
 
 extern crate sgx_types;
 extern crate sgx_tcrypto;
+extern crate sgx_tseal;
 //extern crate sgx_rand_derive;
 
 #[cfg(not(target_env = "sgx"))]
@@ -43,12 +44,14 @@ extern crate sgx_rand;
 
 
 use sgx_types::*;
+use sgx_types::{sgx_status_t, sgx_sealed_data_t};
 use sgx_types::marker::ContiguousMemory;
 use sgx_tcrypto::*;
 use std::vec::Vec;
 use std::slice;
 use std::ptr;
 use sgx_rand::{Rng, StdRng};
+use sgx_tseal::{SgxSealedData};
 
 #[derive(Copy, Clone, Default, Debug)]
 struct RandData {
@@ -81,6 +84,64 @@ pub extern "C" fn ecc_keygen(pk_gx: &mut [u8; SGX_ECP256_KEY_SIZE],
             *pk_gx = pub_key.gx;
             *pk_gy = pub_key.gy;
             *sk = prv_key.r;
+        }
+        Err(e) => return e
+    }
+
+    // let secret_key: [u8; SGX_ECP256_KEY_SIZE] = [0xde, 0x8c, 0xab, 0xf7, 0x7b, 0x11, 0x6e, 0x06, 0x31, 0x02, 0xb6, 0xee,
+    //        0x30, 0xa9, 0xfd, 0xc4, 0x37, 0xd4, 0xcf, 0x01, 0x37, 0x8b, 0x5d, 0xe1, 0xfc, 0x0a, 0x5a, 0x99, 0x54, 0xa9, 0xe3, 0x93];
+
+    sgx_status_t::SGX_SUCCESS
+}
+
+fn to_sealed_log<T: Copy + ContiguousMemory>(sealed_data: &SgxSealedData<T>, sealed_log: * mut u8, sealed_log_size: u32) -> Option<* mut sgx_sealed_data_t> {
+    unsafe {
+        sealed_data.to_raw_sealed_data_t(sealed_log as * mut sgx_sealed_data_t, sealed_log_size)
+    }
+}
+fn from_sealed_log<'a, T: Copy + ContiguousMemory>(sealed_log: * mut u8, sealed_log_size: u32) -> Option<SgxSealedData<'a, T>> {
+    unsafe {
+        SgxSealedData::<T>::from_raw_sealed_data_t(sealed_log as * mut sgx_sealed_data_t, sealed_log_size)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn doctor_ecc_keygen(pk_gx: &mut [u8; SGX_ECP256_KEY_SIZE],
+                             pk_gy: &mut [u8; SGX_ECP256_KEY_SIZE],
+                             sealed_log: * mut u8,
+                             sealed_log_size: u32) -> sgx_status_t {
+                             //sk: &mut [u8; SGX_ECP256_KEY_SIZE]) -> sgx_status_t {
+    println!("ecc_keygen invoked!");
+    let ecc_state = SgxEccHandle::new();
+    let res = ecc_state.open();
+    match res {
+        Err(x) => {
+            return x;
+        }
+        Ok(()) => {
+        }
+    }
+
+    //    let (prv_key, pub_key) = try!(ecc_state.create_key_pair());
+    let res = ecc_state.create_key_pair();
+    //    let (prv_key, pub_key): (sgx_ec256_private_t, sgx_ec256_public_t);
+    match res {
+        Ok((prv_key, pub_key)) => {
+            *pk_gx = pub_key.gx;
+            *pk_gy = pub_key.gy;
+            //*sk = prv_key.r;
+
+            let aad: [u8; 0] = [0_u8; 0];
+            let result = SgxSealedData::<[u8; SGX_ECP256_KEY_SIZE]>::seal_data(&aad, &prv_key.r);
+            let sealed_data = match result {
+                Ok(x) => x,
+                Err(ret) => { return ret; },
+            };
+
+            let opt = to_sealed_log(&sealed_data, sealed_log, sealed_log_size);
+            if opt.is_none() {
+                return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+            }
         }
         Err(e) => return e
     }

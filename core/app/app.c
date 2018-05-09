@@ -35,6 +35,7 @@
 #define MAX_PATH FILENAME_MAX
 
 #include "sgx_urts.h"
+#include "sgx_tseal.h"
 #include "app.h"
 #include "Enclave_u.h"
 
@@ -234,9 +235,38 @@ int SGX_CDECL main(int argc, char *argv[])
         return -1;
     }
 
+    printf("[+] doctor_ecc_keygen started!\n");
+    uint8_t ecc_pk_gx[32] = {0};
+    uint8_t ecc_pk_gy[32] = {0};
+    //uint8_t ecc_sk[32] = {0};
+    sgx_sealed_data_t * sealed_data = 0;
+
+    printf("[+] doctor_ecc_keygen args prepared!\n");
+    sgx_ret = doctor_ecc_keygen(global_eid,
+                                &enclave_ret,
+                                ecc_pk_gx,
+                                ecc_pk_gy,
+                                sealed_log,
+                                sealed_log_size);
+    printf("[+] sealling log returned from enclave!\n");
+    if(sgx_ret != SGX_SUCCESS) {
+      print_error_message(sgx_ret);
+      return -1;
+    }
+    if(enclave_ret != SGX_SUCCESS) {
+      print_error_message(enclave_ret);
+      return -1;
+    }
+    printf("[+] create_sealeddata success ...\n");
+    sealed_data = (sgx_sealed_data_t *)sealed_log;
+    printf("[+] sealed_data.key_request.key_name 0x%x\n", sealed_data->key_request.key_name);
+    printf("[+] sealed_data.key_request.key_policy 0x%x\n", sealed_data->key_request.key_policy);
+    printf("[+] sealed_data.plain_text_offset 0x%x\n", sealed_data->plain_text_offset);
+    printf("[+] sealed_data.aes_data.payload_size 0x%x\n", sealed_data->aes_data.payload_size);
+
     printf("[+] doctor_generate_rx started!\n");
     uint8_t plaintext[16] = {'c', 'w', 'k', '|', '|', 'c', 'v', 's'};
-    uint8_t patientID[16] = {'c', 'w', 'k', '1', '9', '9', '5'};
+    uint8_t patientID[16] = {'c', 'w', 'k', '1', '9', '9', '4'};
     uint8_t patientInfo_aes_gcm_iv[12] = {0};
     uint8_t patientInfo_aes_gcm_ciphertext[16] = {0};
     uint8_t patientInfo_aes_gcm_mac[16] = {0};
