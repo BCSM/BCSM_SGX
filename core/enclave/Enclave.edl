@@ -55,7 +55,12 @@ enclave {
                                                size_t len,
                                                [out] uint8_t iv[12],
                                                [out, size=len] uint8_t* ciphertext,
-                                               [out] uint8_t mac[16]);
+                                               [out] uint8_t mac[16],
+                                               [in, size=sealed_log_size] uint8_t* sealed_log,
+                                               uint32_t sealed_log_size,
+                                               [out] uint32_t sig_x[8],
+                                               [out] uint32_t sig_y[8]
+                                               );
 
         public sgx_status_t aes_gcm_128_encrypt([in] uint8_t key[16],
                                                 [in, size=len] const uint8_t* plaintext,

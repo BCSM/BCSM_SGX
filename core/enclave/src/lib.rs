@@ -158,8 +158,12 @@ pub extern "C" fn doctor_generate_rx(key: &[u8;16],
                                      text_len: usize,
                                      patient_iv: &mut [u8;12],
                                      patient_ciphertext: *mut u8,
-                                     patient_mac: &mut [u8;16]) -> sgx_status_t {
-    {
+                                     patient_mac: &mut [u8;16],
+                                     sealed_log: * mut u8,
+                                     sealed_log_size: u32,
+                                     signature_x: &mut [u32; SGX_NISTP_ECP256_KEY_SIZE],
+                                     signature_y: &mut [u32; SGX_NISTP_ECP256_KEY_SIZE]
+                                     ) -> sgx_status_t {
     let mut iv_array: [u8;SGX_AESGCM_IV_SIZE] = [0; SGX_AESGCM_IV_SIZE];
     println!("aes_gcm_128_encrypt using PatientID started!");
     let mut rand = match StdRng::new() {
@@ -176,7 +180,7 @@ pub extern "C" fn doctor_generate_rx(key: &[u8;16],
         return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
     }
 
-    let ciphertext_slice = &mut ciphertext_vec[..];
+    let ciphertext_slice = &mut ciphertext_vec.clone()[..];
     println!("aes_gcm_128_encrypt parameter prepared! {}, {}",
               plaintext_slice.len(),
               ciphertext_slice.len());
@@ -204,6 +208,63 @@ pub extern "C" fn doctor_generate_rx(key: &[u8;16],
             *patient_mac = mac_array;
         }
     }
+
+    println!("generate record!");
+    let mut rx: Vec<u8> = vec![0; patient_iv.len() + text_len + patient_mac.len()];
+    let mut rx_cnt = 0;
+    for x in iv_array.clone().iter() {
+        rx[rx_cnt] = *x;
+        rx_cnt = rx_cnt + 1;
+    }
+    for x in ciphertext_vec.clone() {
+        rx[rx_cnt] = x;
+        rx_cnt = rx_cnt + 1;
+    }
+    for x in mac_array.clone().iter() {
+        rx[rx_cnt] = *x;
+        rx_cnt = rx_cnt + 1;
+    }
+    let rx_slice = &mut rx.clone()[..];
+
+    println!("unseal signing key!");
+    let mut private: sgx_ec256_private_t = sgx_ec256_private_t::default();
+    let opt = from_sealed_log::<[u8; SGX_ECP256_KEY_SIZE]>(sealed_log, sealed_log_size);
+    let sealed_data = match opt {
+        Some(x) => x,
+        None => {
+            return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+        },
+    };
+    let sealed_ret = sealed_data.unseal_data();
+    let unsealed_data = match sealed_ret {
+        Ok(x) => x,
+        Err(ret) => {
+            return ret;
+        },
+    };
+
+    let data = unsealed_data.get_decrypt_txt();
+    private.r = *data;
+
+    println!("signing record!");
+    let ecc_state = SgxEccHandle::new();
+    let res = ecc_state.open();
+    match res {
+        Err(x) => {
+            return x;
+        }
+        Ok(()) => {
+        }
+    }
+    let sign_ret = ecc_state.ecdsa_sign_slice::<u8>(rx_slice, &private);
+    match sign_ret {
+        Err(x) => {
+            return x;
+        }
+        Ok(sig) => {
+            *signature_x = sig.x;
+            *signature_y = sig.y;
+        }
     }
 
     sgx_status_t::SGX_SUCCESS

@@ -264,12 +264,16 @@ int SGX_CDECL main(int argc, char *argv[])
     printf("[+] sealed_data.plain_text_offset 0x%x\n", sealed_data->plain_text_offset);
     printf("[+] sealed_data.aes_data.payload_size 0x%x\n", sealed_data->aes_data.payload_size);
 
+    printf("[=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=]\n");
     printf("[+] doctor_generate_rx started!\n");
     uint8_t plaintext[16] = {'c', 'w', 'k', '|', '|', 'c', 'v', 's'};
     uint8_t patientID[16] = {'c', 'w', 'k', '1', '9', '9', '4'};
     uint8_t patientInfo_aes_gcm_iv[12] = {0};
     uint8_t patientInfo_aes_gcm_ciphertext[16] = {0};
     uint8_t patientInfo_aes_gcm_mac[16] = {0};
+
+    uint32_t sig_x[8] = {0};
+    uint32_t sig_y[8] = {0};
 
     printf("[+] doctor_generate_rx args prepared!\n");
     sgx_ret = doctor_generate_rx(global_eid,
@@ -279,7 +283,12 @@ int SGX_CDECL main(int argc, char *argv[])
                                  16,
                                  patientInfo_aes_gcm_iv,
                                  patientInfo_aes_gcm_ciphertext,
-                                 patientInfo_aes_gcm_mac);
+                                 patientInfo_aes_gcm_mac,
+                                 sealed_log,
+                                 sealed_log_size,
+                                 sig_x,
+                                 sig_y
+                                 );
     printf("[+] rx returned from enclave!\n");
 
     //printf("%02x\n", aes_gcm_iv[1]);
@@ -311,9 +320,20 @@ int SGX_CDECL main(int argc, char *argv[])
         printf("%02x", patientInfo_aes_gcm_mac[i]);
     }
     printf("\n");
+
+    printf("[+] rx's signature is: \n");
+    for(i = 0; i < 8; i ++) {
+        printf("%08x", sig_x[i]);
+    }
+    printf("\n");
+    for(i = 0; i < 8; i ++) {
+        printf("%08x", sig_y[i]);
+    }
+    printf("\n");
+
     printf("[+] doctor_generate_rx decrypt complete \n");
 
-
+    printf("[=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=]\n");
     printf("[+] Starting pharmacy_decode_rx decrypt calculation\n");
     uint8_t pharmacy_aes_gcm_decrypted_text[16] = {0};
     sgx_ret = aes_gcm_128_decrypt(global_eid,
