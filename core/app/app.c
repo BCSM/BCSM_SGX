@@ -286,6 +286,15 @@ int SGX_CDECL main(int argc, char *argv[])
     uint32_t sig_x[8] = {0};
     uint32_t sig_y[8] = {0};
 
+    uint8_t ecc_pub_gx[32] = {0};
+    uint8_t ecc_pub_gy[32] = {0};
+
+    uint8_t ecc_cipher[16] = {0};
+
+    uint8_t key_aes_gcm_iv[12] = {0};
+    uint8_t key_aes_gcm_ciphertext[16] = {0};
+    uint8_t key_aes_gcm_mac[16] = {0};
+
     printf("[+] doctor_generate_rx args prepared!\n");
     sgx_ret = doctor_generate_rx(global_eid,
                                  &enclave_ret,
@@ -300,7 +309,13 @@ int SGX_CDECL main(int argc, char *argv[])
                                  sealed_log,
                                  sealed_log_size,
                                  sig_x,
-                                 sig_y
+                                 sig_y,
+                                 ecc_pub_gx,
+                                 ecc_pub_gy,
+                                 ecc_cipher,
+                                 key_aes_gcm_iv,
+                                 key_aes_gcm_ciphertext,
+                                 key_aes_gcm_mac
                                  );
     printf("[+] rx returned from enclave!\n");
 
@@ -334,6 +349,40 @@ int SGX_CDECL main(int argc, char *argv[])
     }
     printf("\n");
 
+    printf("[+] temporary public key for ecc encryption is: ");
+    for(i = 0; i < 32; i ++) {
+        printf("%02x", ecc_pub_gx[i]);
+    }
+    printf("\n");
+    for(i = 0; i < 32; i ++) {
+        printf("%02x", ecc_pub_gy[i]);
+    }
+    printf("\n");
+
+    printf("[+] ecc_cipher for temporary aes key is: ");
+    for(i = 0; i < 16; i ++) {
+        printf("%02x", ecc_cipher[i]);
+    }
+    printf("\n");
+
+    printf("[+] rx's iv for patientID is: ");
+    for(i = 0; i < 12; i ++) {
+        printf("%02x", key_aes_gcm_iv[i]);
+    }
+    printf("\n");
+
+    printf("[+] rx's ciphertext for patientID is: ");
+    for(i = 0; i < 16; i ++) {
+        printf("%02x", key_aes_gcm_ciphertext[i]);
+    }
+    printf("\n");
+
+    printf("[+] rx's mac for patientID is: ");
+    for(i = 0; i < 16; i ++) {
+        printf("%02x", key_aes_gcm_mac[i]);
+    }
+    printf("\n");
+
     printf("[+] rx's signature is: \n");
     for(i = 0; i < 8; i ++) {
         printf("%08x", sig_x[i]);
@@ -360,7 +409,13 @@ int SGX_CDECL main(int argc, char *argv[])
                                   ecc_pk_gx,
                                   ecc_pk_gy,
                                   sig_x,
-                                  sig_y
+                                  sig_y,
+                                  ecc_pub_gx,
+                                  ecc_pub_gy,
+                                  ecc_cipher,
+                                  key_aes_gcm_iv,
+                                  key_aes_gcm_ciphertext,
+                                  key_aes_gcm_mac
                                   );
 
     if(sgx_ret != SGX_SUCCESS) {

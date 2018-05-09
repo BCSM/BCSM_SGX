@@ -35,12 +35,14 @@
 extern crate sgx_types;
 extern crate sgx_tcrypto;
 extern crate sgx_tseal;
+
 //extern crate sgx_rand_derive;
 
 #[cfg(not(target_env = "sgx"))]
 #[macro_use]
 extern crate sgx_tstd as std;
 extern crate sgx_rand;
+extern crate sgx_tdh;
 
 
 use sgx_types::*;
@@ -157,6 +159,41 @@ pub extern "C" fn doctor_ecc_keygen(pk_gx: &mut [u8; SGX_ECP256_KEY_SIZE],
     sgx_status_t::SGX_SUCCESS
 }
 
+fn set_error(sgx_ret: sgx_status_t) -> sgx_status_t {
+
+    let ret = match sgx_ret {
+        sgx_status_t::SGX_ERROR_OUT_OF_MEMORY => sgx_status_t::SGX_ERROR_OUT_OF_MEMORY,
+        _ => sgx_status_t::SGX_ERROR_UNEXPECTED,
+    };
+    ret
+}
+
+const EC_LABEL_LENGTH: usize = 3;
+const EC_SMK_LABEL: [u8; EC_LABEL_LENGTH] = [0x53, 0x4D, 0x4B];
+//const EC_AEK_LABEL: [u8; EC_LABEL_LENGTH] = [0x41, 0x45, 0x4B];
+const EC_DERIVATION_BUFFER_SIZE: usize = 7;
+
+fn derive_key(shared_key: &sgx_ec256_dh_shared_t,
+              label: &[u8; EC_LABEL_LENGTH]) -> SgxResult<sgx_ec_key_128bit_t> {
+
+    let cmac_key = sgx_cmac_128bit_key_t::default();
+    let mut key_derive_key = try!(rsgx_rijndael128_cmac_msg(&cmac_key, shared_key).map_err(set_error));
+
+    //derivation_buffer = counter(0x01) || label || 0x00 || output_key_len(0x0080)
+    let mut derivation_buffer = [0_u8; EC_DERIVATION_BUFFER_SIZE];
+    derivation_buffer[0] = 0x01;
+    derivation_buffer[1] = label[0];
+    derivation_buffer[2] = label[1];
+    derivation_buffer[3] = label[2];
+    derivation_buffer[4] = 0x00;
+    derivation_buffer[5] = 0x80;
+    derivation_buffer[6] = 0x00;
+
+    let result = rsgx_rijndael128_cmac_slice(&key_derive_key, &derivation_buffer).map_err(set_error);
+    key_derive_key = Default::default();
+    result
+}
+
 #[no_mangle]
 pub extern "C" fn doctor_generate_rx(key: &[u8;16],
                                      plaintext: *const u8,
@@ -169,8 +206,26 @@ pub extern "C" fn doctor_generate_rx(key: &[u8;16],
                                      sealed_log: * mut u8,
                                      sealed_log_size: u32,
                                      signature_x: &mut [u32; SGX_NISTP_ECP256_KEY_SIZE],
-                                     signature_y: &mut [u32; SGX_NISTP_ECP256_KEY_SIZE]
+                                     signature_y: &mut [u32; SGX_NISTP_ECP256_KEY_SIZE],
+                                     ecc_pk_gx: &mut [u8; SGX_ECP256_KEY_SIZE],
+                                     ecc_pk_gy: &mut [u8; SGX_ECP256_KEY_SIZE],
+                                     ecc_cipher: &mut [u8; SGX_AESGCM_KEY_SIZE],
+                                     key_iv: &mut [u8;12],
+                                     key_ciphertext: *mut u8,
+                                     key_mac: &mut [u8;16]
                                      ) -> sgx_status_t {
+
+    let ecc_state = SgxEccHandle::new();
+    let res = ecc_state.open();
+    match res {
+        Err(x) => {
+            return x;
+        }
+        Ok(()) => {
+        }
+    }
+
+
     let mut iv_array: [u8;SGX_AESGCM_IV_SIZE] = [0; SGX_AESGCM_IV_SIZE];
     println!("aes_gcm_128_encrypt using PatientID started!");
     let mut rand = match StdRng::new() {
@@ -216,8 +271,132 @@ pub extern "C" fn doctor_generate_rx(key: &[u8;16],
         }
     }
 
+    println!("get government public key!");
+    let mut government_pk: sgx_ec256_public_t = sgx_ec256_public_t::default();
+    government_pk.gx = [0xbc, 0xae, 0x99, 0x92,
+                        0x32, 0x1c, 0xb9, 0x2b,
+                        0x82, 0xed, 0x07, 0x31,
+                        0x68, 0x0b, 0xd7, 0x2e,
+                        0x3d, 0x14, 0x25, 0xe3,
+                        0x35, 0xb2, 0xb8, 0x7c,
+                        0x2a, 0x45, 0xe6, 0xcf,
+                        0x6b, 0x8f, 0x69, 0x62];
+    government_pk.gy = [0xad, 0x86, 0x19, 0xd6,
+                        0x83, 0xd6, 0xa2, 0xb0,
+                        0xa2, 0x75, 0xe6, 0x84,
+                        0x82, 0x4b, 0x19, 0x80,
+                        0x28, 0xad, 0x0b, 0x83,
+                        0x92, 0x1e, 0x81, 0x62,
+                        0x24, 0xf0, 0x95, 0xe9,
+                        0xe2, 0x13, 0x8f, 0xc9];
+
+    println!("generate aes key for government encryption!");
+    let mut aeskey_array: [u8;SGX_AESGCM_KEY_SIZE] = [0; SGX_AESGCM_KEY_SIZE];
+    let mut rand2 = match StdRng::new() {
+        Ok(rng) => rng,
+        Err(_) => { return sgx_status_t::SGX_ERROR_UNEXPECTED; },
+    };
+    rand2.fill_bytes(&mut aeskey_array);
+
+    println!("generate ecc key pair for government encryption!");
+    let res = ecc_state.create_key_pair();
+    let (prv_key, pub_key): (sgx_ec256_private_t, sgx_ec256_public_t);
+    match res {
+        Ok((x, y)) => {
+            prv_key = x;
+            pub_key = y;
+        }
+        Err(e) => return e
+    }
+    *ecc_pk_gx = pub_key.gx;
+    *ecc_pk_gy = pub_key.gy;
+
+    println!("generate KDF(shared_key(prv_key, government_pk))!");
+    let res = ecc_state.compute_shared_dhkey(&prv_key, &government_pk);
+    let ecc_drived_key: sgx_ec_key_128bit_t;
+    match res {
+        Ok(x) => {
+            let ret = derive_key(&x, &EC_SMK_LABEL);
+            match ret {
+                Ok(y) => {
+                    ecc_drived_key = y;
+                }
+                Err(e) => return e
+            }
+        }
+        Err(e) => return e
+    }
+
+    println!("compute derived_key xor aes key!");
+    let mut ecc_cipher_array: [u8; SGX_AESGCM_KEY_SIZE] = [0; SGX_AESGCM_KEY_SIZE];
+    let mut idx = 0;
+    while idx < SGX_AESGCM_KEY_SIZE {
+        ecc_cipher_array[idx] = ecc_drived_key[idx] ^ aeskey_array[idx];
+        idx = idx + 1;
+    }
+    *ecc_cipher = ecc_cipher_array;
+
+    println!("compute aes encryption for PatientID!");
+    let mut ciphertext_vec2: Vec<u8> = vec![0; SGX_AESGCM_KEY_SIZE];
+    let ciphertext_slice2 = &mut ciphertext_vec2[..];
+    {
+        let text_len = SGX_AESGCM_KEY_SIZE;
+        let mut iv_array: [u8;SGX_AESGCM_IV_SIZE] = [0; SGX_AESGCM_IV_SIZE];
+        println!("aes_gcm_128_encrypt for PatientID started!");
+        let mut rand = match StdRng::new() {
+            Ok(rng) => rng,
+            Err(_) => { return sgx_status_t::SGX_ERROR_UNEXPECTED; },
+        };
+        rand.fill_bytes(&mut iv_array);
+
+        // Warning:!!!!
+        let plaintext_slice = key.clone(); //unsafe { slice::from_raw_parts(key, text_len) };
+
+        let aad_array: [u8; 0] = [0; 0];
+        let mut mac_array: [u8; SGX_AESGCM_MAC_SIZE] = [0; SGX_AESGCM_MAC_SIZE];
+        if plaintext_slice.len() != text_len {
+            return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+        }
+        println!("aes_gcm_128_encrypt parameter prepared! {}, {}",
+                  plaintext_slice.len(),
+                  ciphertext_slice2.len());
+
+        let result = rsgx_rijndael128GCM_encrypt(&aeskey_array,
+                                                 &plaintext_slice,
+                                                 &iv_array,
+                                                 &aad_array,
+                                                 ciphertext_slice2,
+                                                 &mut mac_array);
+
+        println!("rsgx calling returned!");
+        match result {
+            Err(x) => {
+                println!("Error!!!!!!!!!!!!!!!");
+                return x;
+            }
+            Ok(()) => {
+                unsafe{
+                    ptr::copy_nonoverlapping(ciphertext_slice2.as_ptr(),
+                                             key_ciphertext,
+                                             text_len);
+                }
+                *key_iv = iv_array;
+                *key_mac = mac_array;
+            }
+        }
+    }
+
     println!("generate record!");
-    let mut rx: Vec<u8> = vec![0; patient_iv.len() + text_len + patient_mac.len()];
+    let mut rx: Vec<u8> = vec![0; patient_iv.len()
+                                //+ text_len
+                                + ciphertext_slice.len()
+                                + patient_mac.len()
+                                + pub_key.gx.len()
+                                + pub_key.gy.len()
+                                + ecc_cipher_array.len()
+                                + key_iv.len()
+                                + ciphertext_slice2.len()
+                                + key_mac.len()];
     let mut rx_cnt = 0;
     for x in patient_iv.clone().iter() {
         rx[rx_cnt] = *x;
@@ -228,6 +407,30 @@ pub extern "C" fn doctor_generate_rx(key: &[u8;16],
         rx_cnt = rx_cnt + 1;
     }
     for x in patient_mac.clone().iter() {
+        rx[rx_cnt] = *x;
+        rx_cnt = rx_cnt + 1;
+    }
+    for x in pub_key.gx.clone().iter() {
+        rx[rx_cnt] = *x;
+        rx_cnt = rx_cnt + 1;
+    }
+    for x in pub_key.gy.clone().iter() {
+        rx[rx_cnt] = *x;
+        rx_cnt = rx_cnt + 1;
+    }
+    for x in ecc_cipher_array.clone().iter() {
+        rx[rx_cnt] = *x;
+        rx_cnt = rx_cnt + 1;
+    }
+    for x in key_iv.clone().iter() {
+        rx[rx_cnt] = *x;
+        rx_cnt = rx_cnt + 1;
+    }
+    for x in ciphertext_slice2 {
+        rx[rx_cnt] = *x;
+        rx_cnt = rx_cnt + 1;
+    }
+    for x in key_mac.clone().iter() {
         rx[rx_cnt] = *x;
         rx_cnt = rx_cnt + 1;
     }
@@ -260,15 +463,6 @@ pub extern "C" fn doctor_generate_rx(key: &[u8;16],
     }*/
 
     println!("signing record!");
-    let ecc_state = SgxEccHandle::new();
-    let res = ecc_state.open();
-    match res {
-        Err(x) => {
-            return x;
-        }
-        Ok(()) => {
-        }
-    }
     let sign_ret = ecc_state.ecdsa_sign_slice::<u8>(rx_slice, &private);
     match sign_ret {
         Err(x) => {
@@ -314,7 +508,13 @@ pub extern "C" fn pharmacy_decode_rx(key: &[u8;16],
                                      pk_gx: &[u8; SGX_ECP256_KEY_SIZE],
                                      pk_gy: &[u8; SGX_ECP256_KEY_SIZE],
                                      signature_x: &[u32; SGX_NISTP_ECP256_KEY_SIZE],
-                                     signature_y: &[u32; SGX_NISTP_ECP256_KEY_SIZE]
+                                     signature_y: &[u32; SGX_NISTP_ECP256_KEY_SIZE],
+                                     ecc_pk_gx: &[u8; SGX_ECP256_KEY_SIZE],
+                                     ecc_pk_gy: &[u8; SGX_ECP256_KEY_SIZE],
+                                     ecc_cipher: &[u8; SGX_AESGCM_KEY_SIZE],
+                                     key_iv: &[u8;12],
+                                     key_ciphertext: *const u8,
+                                     key_mac: &[u8;16]
                                      ) -> sgx_status_t {
     println!("pharmacy_decode_rx invoked!");
 
@@ -358,8 +558,19 @@ pub extern "C" fn pharmacy_decode_rx(key: &[u8;16],
         }
     }
 
+    let ciphertext_slice2 = unsafe { slice::from_raw_parts(key_ciphertext, SGX_AESGCM_KEY_SIZE) };
+
     println!("generate record!");
-    let mut rx: Vec<u8> = vec![0; patient_iv.len() + text_len + patient_mac.len()];
+    let mut rx: Vec<u8> = vec![0; patient_iv.len()
+                                //+ text_len
+                                + ciphertext_slice.len()
+                                + patient_mac.len()
+                                + ecc_pk_gx.len()
+                                + ecc_pk_gy.len()
+                                + ecc_cipher.len()
+                                + key_iv.len()
+                                + ciphertext_slice2.len()
+                                + key_mac.len()];
     let mut rx_cnt = 0;
     for x in patient_iv.clone().iter() {
         rx[rx_cnt] = *x;
@@ -370,6 +581,30 @@ pub extern "C" fn pharmacy_decode_rx(key: &[u8;16],
         rx_cnt = rx_cnt + 1;
     }
     for x in patient_mac.clone().iter() {
+        rx[rx_cnt] = *x;
+        rx_cnt = rx_cnt + 1;
+    }
+    for x in ecc_pk_gx.clone().iter() {
+        rx[rx_cnt] = *x;
+        rx_cnt = rx_cnt + 1;
+    }
+    for x in ecc_pk_gy.clone().iter() {
+        rx[rx_cnt] = *x;
+        rx_cnt = rx_cnt + 1;
+    }
+    for x in ecc_cipher.clone().iter() {
+        rx[rx_cnt] = *x;
+        rx_cnt = rx_cnt + 1;
+    }
+    for x in key_iv.clone().iter() {
+        rx[rx_cnt] = *x;
+        rx_cnt = rx_cnt + 1;
+    }
+    for x in ciphertext_slice2 {
+        rx[rx_cnt] = *x;
+        rx_cnt = rx_cnt + 1;
+    }
+    for x in key_mac.clone().iter() {
         rx[rx_cnt] = *x;
         rx_cnt = rx_cnt + 1;
     }

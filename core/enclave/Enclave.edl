@@ -61,7 +61,13 @@ enclave {
                                                [in, size=sealed_log_size] uint8_t* sealed_log,
                                                uint32_t sealed_log_size,
                                                [out] uint32_t sig_x[8],
-                                               [out] uint32_t sig_y[8]
+                                               [out] uint32_t sig_y[8],
+                                               [out] uint8_t pk_gx2[32],
+                                               [out] uint8_t pk_gy2[32],
+                                               [out] uint8_t ecc_cipher[16],
+                                               [out] uint8_t key_iv[12],
+                                               [out, size=len] uint8_t* key_ciphertext,
+                                               [out] uint8_t key_mac[16]
                                                );
 
         public sgx_status_t aes_gcm_128_encrypt([in] uint8_t key[16],
@@ -87,7 +93,13 @@ enclave {
                                                 [in] uint8_t pk_gx[32],
                                                 [in] uint8_t pk_gy[32],
                                                 [in] uint32_t sig_x[8],
-                                                [in] uint32_t sig_y[8]
+                                                [in] uint32_t sig_y[8],
+                                                [in] uint8_t pk_gx2[32],
+                                                [in] uint8_t pk_gy2[32],
+                                                [in] uint8_t ecc_cipher[16],
+                                                [in] uint8_t key_iv[12],
+                                                [in, size=len] uint8_t* key_ciphertext,
+                                                [in] uint8_t key_mac[16]
                                                 );
 
         /* public sgx_status_t aes_cmac([in, size=len] const uint8_t* text,
