@@ -122,6 +122,7 @@ pub extern "C" fn doctor_ecc_keygen(pk_gx: &mut [u8; SGX_ECP256_KEY_SIZE],
         }
     }
 
+    println!("generate key pair!");
     //    let (prv_key, pub_key) = try!(ecc_state.create_key_pair());
     let res = ecc_state.create_key_pair();
     //    let (prv_key, pub_key): (sgx_ec256_private_t, sgx_ec256_public_t);
@@ -130,6 +131,10 @@ pub extern "C" fn doctor_ecc_keygen(pk_gx: &mut [u8; SGX_ECP256_KEY_SIZE],
             *pk_gx = pub_key.gx;
             *pk_gy = pub_key.gy;
             //*sk = prv_key.r;
+            println!("sealing secret key!");
+            /*for x in prv_key.r.clone().iter() {
+                println!("{}", x);
+            }*/
 
             let aad: [u8; 0] = [0_u8; 0];
             let result = SgxSealedData::<[u8; SGX_ECP256_KEY_SIZE]>::seal_data(&aad, &prv_key.r);
@@ -159,6 +164,8 @@ pub extern "C" fn doctor_generate_rx(key: &[u8;16],
                                      patient_iv: &mut [u8;12],
                                      patient_ciphertext: *mut u8,
                                      patient_mac: &mut [u8;16],
+                                     pk_gx: &[u8; SGX_ECP256_KEY_SIZE],
+                                     pk_gy: &[u8; SGX_ECP256_KEY_SIZE],
                                      sealed_log: * mut u8,
                                      sealed_log_size: u32,
                                      signature_x: &mut [u32; SGX_NISTP_ECP256_KEY_SIZE],
@@ -180,7 +187,7 @@ pub extern "C" fn doctor_generate_rx(key: &[u8;16],
         return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
     }
 
-    let ciphertext_slice = &mut ciphertext_vec.clone()[..];
+    let ciphertext_slice = &mut ciphertext_vec[..];
     println!("aes_gcm_128_encrypt parameter prepared! {}, {}",
               plaintext_slice.len(),
               ciphertext_slice.len());
@@ -212,19 +219,22 @@ pub extern "C" fn doctor_generate_rx(key: &[u8;16],
     println!("generate record!");
     let mut rx: Vec<u8> = vec![0; patient_iv.len() + text_len + patient_mac.len()];
     let mut rx_cnt = 0;
-    for x in iv_array.clone().iter() {
+    for x in patient_iv.clone().iter() {
         rx[rx_cnt] = *x;
         rx_cnt = rx_cnt + 1;
     }
-    for x in ciphertext_vec.clone() {
-        rx[rx_cnt] = x;
+    for x in ciphertext_slice {
+        rx[rx_cnt] = *x;
         rx_cnt = rx_cnt + 1;
     }
-    for x in mac_array.clone().iter() {
+    for x in patient_mac.clone().iter() {
         rx[rx_cnt] = *x;
         rx_cnt = rx_cnt + 1;
     }
     let rx_slice = &mut rx.clone()[..];
+    /*for x in rx.clone().iter() {
+        println!("{}", x);
+    }*/
 
     println!("unseal signing key!");
     let mut private: sgx_ec256_private_t = sgx_ec256_private_t::default();
@@ -245,6 +255,9 @@ pub extern "C" fn doctor_generate_rx(key: &[u8;16],
 
     let data = unsealed_data.get_decrypt_txt();
     private.r = *data;
+    /*for x in data.clone().iter() {
+        println!("{}", x);
+    }*/
 
     println!("signing record!");
     let ecc_state = SgxEccHandle::new();
@@ -267,16 +280,42 @@ pub extern "C" fn doctor_generate_rx(key: &[u8;16],
         }
     }
 
-    sgx_status_t::SGX_SUCCESS
+    println!("check record!");
+    let mut public: sgx_ec256_public_t = sgx_ec256_public_t::default();
+    public.gx = *pk_gx;
+    public.gy = *pk_gy;
+
+    let mut signature: sgx_ec256_signature_t = sgx_ec256_signature_t::default();
+    signature.x = *signature_x;
+    signature.y = *signature_y;
+
+    let sign_ret = ecc_state.ecdsa_verify_slice::<u8>(rx_slice, &public, &signature);
+    match sign_ret {
+        Err(x) => {
+            return x;
+        }
+        Ok(true) => {
+            sgx_status_t::SGX_SUCCESS
+        }
+        Ok(false) => {
+            sgx_status_t::SGX_ERROR_UNEXPECTED
+        }
+    }
+    //sgx_status_t::SGX_SUCCESS
 }
 
 #[no_mangle]
 pub extern "C" fn pharmacy_decode_rx(key: &[u8;16],
                                      ciphertext: *const u8,
                                      text_len: usize,
-                                     iv: &[u8;12],
-                                     mac: &[u8;16],
-                                     plaintext: *mut u8) -> sgx_status_t {
+                                     patient_iv: &[u8;12],
+                                     patient_mac: &[u8;16],
+                                     plaintext: *mut u8,
+                                     pk_gx: &[u8; SGX_ECP256_KEY_SIZE],
+                                     pk_gy: &[u8; SGX_ECP256_KEY_SIZE],
+                                     signature_x: &[u32; SGX_NISTP_ECP256_KEY_SIZE],
+                                     signature_y: &[u32; SGX_NISTP_ECP256_KEY_SIZE]
+                                     ) -> sgx_status_t {
     println!("pharmacy_decode_rx invoked!");
 
     // First, for data with unknown length, we use vector as builder.
@@ -298,9 +337,9 @@ pub extern "C" fn pharmacy_decode_rx(key: &[u8;16],
     // After everything has been set, call API
     let result = rsgx_rijndael128GCM_decrypt(key,
                                              &ciphertext_slice,
-                                             iv,
+                                             patient_iv,
                                              &aad_array,
-                                             mac,
+                                             patient_mac,
                                              plaintext_slice);
 
     println!("rsgx calling returned!");
@@ -319,7 +358,58 @@ pub extern "C" fn pharmacy_decode_rx(key: &[u8;16],
         }
     }
 
-    sgx_status_t::SGX_SUCCESS
+    println!("generate record!");
+    let mut rx: Vec<u8> = vec![0; patient_iv.len() + text_len + patient_mac.len()];
+    let mut rx_cnt = 0;
+    for x in patient_iv.clone().iter() {
+        rx[rx_cnt] = *x;
+        rx_cnt = rx_cnt + 1;
+    }
+    for x in ciphertext_slice.clone() {
+        rx[rx_cnt] = *x;
+        rx_cnt = rx_cnt + 1;
+    }
+    for x in patient_mac.clone().iter() {
+        rx[rx_cnt] = *x;
+        rx_cnt = rx_cnt + 1;
+    }
+    let rx_slice = &mut rx.clone()[..];
+
+    println!("get public key for signature verification!");
+    let mut public: sgx_ec256_public_t = sgx_ec256_public_t::default();
+    public.gx = *pk_gx;
+    public.gy = *pk_gy;
+
+    println!("get signature!");
+    let mut signature: sgx_ec256_signature_t = sgx_ec256_signature_t::default();
+    signature.x = *signature_x;
+    signature.y = *signature_y;
+    /*for x in public.gy.clone().iter() {
+        println!("{}", *x);
+    }*/
+
+    println!("verify signature!");
+    let ecc_state = SgxEccHandle::new();
+    let res = ecc_state.open();
+    match res {
+        Err(x) => {
+            return x;
+        }
+        Ok(()) => {
+        }
+    }
+    let sign_ret = ecc_state.ecdsa_verify_slice::<u8>(rx_slice, &public, &signature);
+    match sign_ret {
+        Err(x) => {
+            return x;
+        }
+        Ok(true) => {
+            sgx_status_t::SGX_SUCCESS
+        }
+        Ok(false) => {
+            sgx_status_t::SGX_ERROR_INVALID_SIGNATURE
+        }
+    }
 }
 
 /// An AES-GCM-128 encrypt function sample.

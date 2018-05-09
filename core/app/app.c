@@ -257,6 +257,17 @@ int SGX_CDECL main(int argc, char *argv[])
       print_error_message(enclave_ret);
       return -1;
     }
+
+    printf("[+] doctor's public key is:\n");
+    for(i = 0; i < 32; i ++) {
+        printf("%02x", ecc_pk_gx[i]);
+    }
+    printf("\n");
+    for(i = 0; i < 32; i ++) {
+        printf("%02x", ecc_pk_gy[i]);
+    }
+    printf("\n");
+
     printf("[+] create_sealeddata success ...\n");
     sealed_data = (sgx_sealed_data_t *)sealed_log;
     printf("[+] sealed_data.key_request.key_name 0x%x\n", sealed_data->key_request.key_name);
@@ -284,6 +295,8 @@ int SGX_CDECL main(int argc, char *argv[])
                                  patientInfo_aes_gcm_iv,
                                  patientInfo_aes_gcm_ciphertext,
                                  patientInfo_aes_gcm_mac,
+                                 ecc_pk_gx,
+                                 ecc_pk_gy,
                                  sealed_log,
                                  sealed_log_size,
                                  sig_x,
@@ -336,14 +349,19 @@ int SGX_CDECL main(int argc, char *argv[])
     printf("[=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=]\n");
     printf("[+] Starting pharmacy_decode_rx decrypt calculation\n");
     uint8_t pharmacy_aes_gcm_decrypted_text[16] = {0};
-    sgx_ret = aes_gcm_128_decrypt(global_eid,
+    sgx_ret = pharmacy_decode_rx(global_eid,
                                   &enclave_ret,
                                   patientID,
                                   patientInfo_aes_gcm_ciphertext,
                                   16,
                                   patientInfo_aes_gcm_iv,
                                   patientInfo_aes_gcm_mac,
-                                  pharmacy_aes_gcm_decrypted_text);
+                                  pharmacy_aes_gcm_decrypted_text,
+                                  ecc_pk_gx,
+                                  ecc_pk_gy,
+                                  sig_x,
+                                  sig_y
+                                  );
 
     if(sgx_ret != SGX_SUCCESS) {
         print_error_message(sgx_ret);
@@ -360,7 +378,7 @@ int SGX_CDECL main(int argc, char *argv[])
     }
     printf("\n");
 
-    printf("[+] pharmacy_decode_rx decrypt complete \n");
+    printf("[+] pharmacy_decode_rx decrypt and verify signature complete \n");
 
     /* Destroy the enclave */
     sgx_destroy_enclave(global_eid);
