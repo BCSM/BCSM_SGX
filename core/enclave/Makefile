@@ -35,8 +35,8 @@ all: $(Rust_Enclave_Name)
 $(Rust_Enclave_Name): $(Rust_Enclave_Files)
 ifeq ($(XARGO_SGX), 1)
 	xargo build --target x86_64-unknown-linux-sgx --release
-	cp ./target/x86_64-unknown-linux-sgx/release/libcryptosampleenclave.a ../lib/libenclave.a
+	cp ./target/x86_64-unknown-linux-sgx/release/libbcsmsampleenclave.a ../lib/libenclave.a
 else
 	cargo build --release
-	cp ./target/release/libcryptosampleenclave.a ../lib/libenclave.a
+	cp ./target/release/libbcsmsampleenclave.a ../lib/libenclave.a
 endif

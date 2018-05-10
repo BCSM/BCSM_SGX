@@ -516,7 +516,7 @@ int SGX_CDECL main(int argc, char *argv[])
         printf("%c", pharmacy_aes_gcm_decrypted_text[i]);
     }
     printf("\n");
-    printf("[+] pharmacy_decode_rx decrypt and verify signature complete \n");
+    printf("[+] government_decode_rx decrypt and verify signature complete \n");
 
     /* Destroy the enclave */
     sgx_destroy_enclave(global_eid);

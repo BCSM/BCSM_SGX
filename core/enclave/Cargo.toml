@@ -1,10 +1,10 @@
 [package]
-name = "Cryptosampleenclave"
+name = "BCSMsampleenclave"
 version = "0.9.8"
 authors = ["Baidu"]
 
 [lib]
-name = "cryptosampleenclave"
+name = "bcsmsampleenclave"
 crate-type = ["staticlib"]
 
 [features]
