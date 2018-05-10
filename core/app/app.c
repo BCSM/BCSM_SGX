@@ -259,14 +259,19 @@ int SGX_CDECL main(int argc, char *argv[])
     }
 
     printf("[+] doctor's public key is:\n");
+    fprintf(stderr, "doctor_PK ");
     for(i = 0; i < 32; i ++) {
         printf("%02x", ecc_pk_gx[i]);
+        fprintf(stderr, "%02x", ecc_pk_gx[i]);
     }
     printf("\n");
+    fprintf(stderr, " ");
     for(i = 0; i < 32; i ++) {
         printf("%02x", ecc_pk_gy[i]);
+        fprintf(stderr, "%02x", ecc_pk_gy[i]);
     }
     printf("\n");
+    fprintf(stderr, "\n");
 
     printf("[+] create_sealeddata success ...\n");
     sealed_data = (sgx_sealed_data_t *)sealed_log;
@@ -332,66 +337,97 @@ int SGX_CDECL main(int argc, char *argv[])
     }
 
     printf("[+] rx's iv for patientInfo is: ");
+    fprintf(stderr, "patientInfo_iv ");
     for(i = 0; i < 12; i ++) {
         printf("%02x", patientInfo_aes_gcm_iv[i]);
+        fprintf(stderr, "%02x", patientInfo_aes_gcm_iv[i]);
     }
     printf("\n");
+    fprintf(stderr, "\n");
 
     printf("[+] rx's ciphertext for patientInfo is: ");
+    fprintf(stderr, "patientInfo_cipher ");
     for(i = 0; i < 16; i ++) {
         printf("%02x", patientInfo_aes_gcm_ciphertext[i]);
+        fprintf(stderr, "%02x", patientInfo_aes_gcm_ciphertext[i]);
     }
     printf("\n");
+    fprintf(stderr, "\n");
 
     printf("[+] rx's mac for patientInfo is: ");
+    fprintf(stderr, "patientInfo_mac ");
     for(i = 0; i < 16; i ++) {
         printf("%02x", patientInfo_aes_gcm_mac[i]);
+        fprintf(stderr, "%02x", patientInfo_aes_gcm_mac[i]);
     }
     printf("\n");
+    fprintf(stderr, "\n");
 
     printf("[+] temporary public key for ecc encryption is: \n");
+    fprintf(stderr, "tmp_pk ");
     for(i = 0; i < 32; i ++) {
         printf("%02x", ecc_pub_gx[i]);
+        fprintf(stderr, "%02x", ecc_pub_gx[i]);
     }
     printf("\n");
+    fprintf(stderr, " ");
     for(i = 0; i < 32; i ++) {
         printf("%02x", ecc_pub_gy[i]);
+        fprintf(stderr, "%02x", ecc_pub_gy[i]);
     }
     printf("\n");
+    fprintf(stderr, "\n");
 
     printf("[+] ecc_cipher for temporary aes key is: ");
+    fprintf(stderr, "ecc_ciphertext ");
     for(i = 0; i < 16; i ++) {
         printf("%02x", ecc_cipher[i]);
+        fprintf(stderr, "%02x", ecc_cipher[i]);
     }
     printf("\n");
+    fprintf(stderr, "\n");
 
     printf("[+] rx's iv for patientID is: ");
+    fprintf(stderr, "patientID_iv ");
     for(i = 0; i < 12; i ++) {
         printf("%02x", key_aes_gcm_iv[i]);
+        fprintf(stderr, "%02x", key_aes_gcm_iv[i]);
     }
     printf("\n");
+    fprintf(stderr, "\n");
 
     printf("[+] rx's ciphertext for patientID is: ");
+    fprintf(stderr, "patientID_ciphertext ");
     for(i = 0; i < 16; i ++) {
         printf("%02x", key_aes_gcm_ciphertext[i]);
+        fprintf(stderr, "%02x", key_aes_gcm_ciphertext[i]);
     }
     printf("\n");
+    fprintf(stderr, "\n");
 
-    printf("[+] rx's mac for patientID is: ");
+    printf("[+] rx's mac for patientID is ");
+    fprintf(stderr, "patientID_mac ");
     for(i = 0; i < 16; i ++) {
         printf("%02x", key_aes_gcm_mac[i]);
+        fprintf(stderr, "%02x", key_aes_gcm_mac[i]);
     }
     printf("\n");
+    fprintf(stderr, "\n");
 
-    printf("[+] rx's signature is: \n");
+    printf("[+] rx's signature is \n");
+    fprintf(stderr, "record_sig ");
     for(i = 0; i < 8; i ++) {
         printf("%08x", sig_x[i]);
+        fprintf(stderr, "%02x", sig_x[i]);
     }
     printf("\n");
+    fprintf(stderr, " ");
     for(i = 0; i < 8; i ++) {
         printf("%08x", sig_y[i]);
+        fprintf(stderr, "%02x", sig_y[i]);
     }
     printf("\n");
+    fprintf(stderr, "\n");
 
     printf("[+] doctor_generate_rx decrypt complete \n");
 
