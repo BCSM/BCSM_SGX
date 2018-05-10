@@ -70,7 +70,7 @@ enclave {
                                                [out] uint8_t key_mac[16]
                                                );
 
-        public sgx_status_t aes_gcm_128_encrypt([in] uint8_t key[16],
+        /*public sgx_status_t aes_gcm_128_encrypt([in] uint8_t key[16],
                                                 [in, size=len] const uint8_t* plaintext,
                                                 size_t len,
                                                 [in] uint8_t iv[12],
@@ -82,7 +82,7 @@ enclave {
                                                 size_t len,
                                                 [in] uint8_t iv[12],
                                                 [in] uint8_t mac[16],
-                                                [out, size=len] uint8_t* plaintext);
+                                                [out, size=len] uint8_t* plaintext);*/
 
         public sgx_status_t pharmacy_decode_rx([in] uint8_t key[16],
                                                 [in, size=len] const uint8_t* ciphertext,
