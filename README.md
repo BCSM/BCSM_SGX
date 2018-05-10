@@ -18,7 +18,7 @@ We consider a world with digital prescription (Rx). There are mainly six parties
 - **State Board of Medicine:** The *State Board of Medicine* uses CONIKS to manage doctors' *VK* and is responsible to anounce revoked *VK*.
 - **Miner:** A signed Rx will be sent to the miner and stored on the permissioned blockchain like [Hyperledger Fabric](https://www.hyperledger.org/projects/fabric). Miner gets the doctor's *VK* from CONIKS and checks whether the signature is valid (although on-chain Rx should already have a valid doctor signature). If the signature and Rx content is valid, the Rx will be settled on blockchain.
 - **Patient:** A patient goes to a doctor for a digital Rx. The patient then brings the digital Rx to the pharmacy to pick up the medicine. In our course project, we focus on controlled substances.
-- **Pharmacy:** A pharmacy sells prescripted medicine under a doctor's Rx. A pharmacy downloads the Rx from blockchain.  
+- **Pharmacy:** A pharmacy sells prescripted medicine under a doctor's Rx. Only Rx appear on the blockchain is accepted.
 - **Government:** A federal government is able to decrypt all Rxs on blockchain, whereas a state government can only monitor Rxs within the state.
 
 Now, we consider an adversary:
