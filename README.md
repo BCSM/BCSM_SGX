@@ -1,4 +1,4 @@
-# An Intel SGX Signing and Encryption Oracle
+# An Intel SGX Encryption and Signing Oracle
 
 This repository is for an [Intel SGX](https://software.intel.com/en-us/sgx) signing oracle with the application to blockchain-based controlled substances monitoring.
 
@@ -12,9 +12,12 @@ The implementation is based on [Baidu's Rust SGX SDK](https://github.com/baidu/r
 
 ## Motivation
 We consider a world with digital prescription (Rx). There are mainly three parties as follows:
-- *Doctor:* A doctor has a pair of signing key *SK* and *VK*. The doctor commits the *VK*	to a key transparency system, like [CONIKS](https://github.com/coniks-sys/coniks-go). The doctor uses *SK* to sign a Rx. When a Rx is signed by a doctor with valid license (namely, *VK* is active in CONIKS), the Rx becomes valid. 
+- **Doctor:** 
+  - *Encryption:* A doctor uses the patient's ID (such as the combinition of patient's name, birthday and SSN) to encrypt the Rx
+  - *Signing:* A doctor has a pair of signing key *SK* and *VK*. The doctor commits the *VK*	to a key transparency system, like [CONIKS](https://github.com/coniks-sys/coniks-go). The doctor uses *SK* to sign a Rx. When a Rx is signed by a doctor with valid license (namely, *VK* is active in CONIKS), the Rx becomes valid. 
 - *Patient:* A patient goes to a doctor for a digital Rx. The patient then brings the digital Rx to the pharmacy to pick up the medicine. In our course project, we focus on controlled substances.
 - *Pharmacy:* A pharmacy sells prescripted medicine under a doctor's Rx. The pharmacy gets the doctor's *VK* from CONIKS and checks whether the signature is valid (although on-chain Rx should already have a valid doctor signature). If the signature is valid, the pharmacy gives the medicine.
+- *Government:* A government 
 
 Now, we consider an adversary:
 - *Adversary:* An adversary wants to order controlled substances from government approved pharmacies (with the market price) and sells in the underground market. In order to get controlled substances from the pharmacies, the adversary needs to obtain many valid Rx. To do that without explicitly colluding with a doctor, the adversary needs to get a doctor signing key.
