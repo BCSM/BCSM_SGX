@@ -67,7 +67,12 @@ chmod 0777 run.sh
 sudo ./run.sh
 ```
 
-Inside the docker, we go to `samplecode/BCSM_SGX`, run `make`, and go to `bin`. The demo program is `./app`.
+Inside the docker, first we runs the AESM service:
+```
+/opt/intel/sgxpsw/aesm/aesm_service &
+```
+
+Then we go to `samplecode/BCSM_SGX`, run `make`, and go to `bin`. The demo program is `./app`.
 
 ## Acknowledgment
 
