@@ -1,6 +1,6 @@
 # An Intel SGX Encryption and Signing Oracle
 
-This repository is for an [Intel SGX](https://software.intel.com/en-us/sgx) encryption and signing oracle with the application to blockchain-based controlled substances monitoring.
+This repository is for an [Intel SGX](https://software.intel.com/en-us/sgx) encryption and signing oracle with the application to **Blockchain-based Controlled Substances Monitoring**.
 
 This is part of the implementation for a course project to [CS294-144](https://berkeley-blockchain.github.io/cs294-144-s18/), Blockchain, Cryptoeconomics, and the Future of Technology, Business and Law. 
 
