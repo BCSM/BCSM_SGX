@@ -1,6 +1,6 @@
 # An Intel SGX Encryption and Signing Oracle
 
-This repository is for an [Intel SGX](https://software.intel.com/en-us/sgx) signing oracle with the application to blockchain-based controlled substances monitoring.
+This repository is for an [Intel SGX](https://software.intel.com/en-us/sgx) encryption and signing oracle with the application to blockchain-based controlled substances monitoring.
 
 This is part of the implementation for a course project to [CS294-144](https://berkeley-blockchain.github.io/cs294-144-s18/), Blockchain, Cryptoeconomics, and the Future of Technology, Business and Law. 
 
@@ -65,8 +65,6 @@ This repository uses the rust-sgx-sdk as a sub-module. The sub-module can be ret
 git submodule init
 git submodule update
 ```
-
-Then we modify the `run.sh` to change the `/home/ych/Research/2018Spring/CS294-144/` into your actual directory.
 
 We can start the docker by:
 ```
