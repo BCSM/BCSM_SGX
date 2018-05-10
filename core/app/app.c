@@ -349,7 +349,7 @@ int SGX_CDECL main(int argc, char *argv[])
     }
     printf("\n");
 
-    printf("[+] temporary public key for ecc encryption is: ");
+    printf("[+] temporary public key for ecc encryption is: \n");
     for(i = 0; i < 32; i ++) {
         printf("%02x", ecc_pub_gx[i]);
     }
@@ -432,7 +432,54 @@ int SGX_CDECL main(int argc, char *argv[])
         printf("%c", pharmacy_aes_gcm_decrypted_text[i]);
     }
     printf("\n");
+    printf("[+] pharmacy_decode_rx decrypt and verify signature complete \n");
 
+    printf("[=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=] [=]\n");
+    printf("[+] Starting government_decode_rx decrypt calculation\n");
+    uint8_t gov_sk[32] = {0xde, 0x8c, 0xab, 0xf7,
+                          0x7b, 0x11, 0x6e, 0x06,
+                          0x31, 0x02, 0xb6, 0xee,
+                          0x30, 0xa9, 0xfd, 0xc4,
+                          0x37, 0xd4, 0xcf, 0x01,
+                          0x37, 0x8b, 0x5d, 0xe1,
+                          0xfc, 0x0a, 0x5a, 0x99,
+                          0x54, 0xa9, 0xe3, 0x93};
+    uint8_t government_aes_gcm_decrypted_text[16] = {0};
+
+    sgx_ret = government_decode_rx(global_eid,
+                                  &enclave_ret,
+                                  gov_sk,
+                                  patientInfo_aes_gcm_ciphertext,
+                                  16,
+                                  patientInfo_aes_gcm_iv,
+                                  patientInfo_aes_gcm_mac,
+                                  government_aes_gcm_decrypted_text,
+                                  ecc_pk_gx,
+                                  ecc_pk_gy,
+                                  sig_x,
+                                  sig_y,
+                                  ecc_pub_gx,
+                                  ecc_pub_gy,
+                                  ecc_cipher,
+                                  key_aes_gcm_iv,
+                                  key_aes_gcm_ciphertext,
+                                  key_aes_gcm_mac
+                                  );
+
+    if(sgx_ret != SGX_SUCCESS) {
+        print_error_message(sgx_ret);
+        return -1;
+    }
+    if(enclave_ret != SGX_SUCCESS) {
+        print_error_message(enclave_ret);
+        return -1;
+    }
+
+    printf("[+] rx plaintext is: ");
+    for(i = 0; i < 16; i ++) {
+        printf("%c", pharmacy_aes_gcm_decrypted_text[i]);
+    }
+    printf("\n");
     printf("[+] pharmacy_decode_rx decrypt and verify signature complete \n");
 
     /* Destroy the enclave */

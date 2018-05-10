@@ -335,6 +335,9 @@ pub extern "C" fn doctor_generate_rx(key: &[u8;16],
         idx = idx + 1;
     }
     *ecc_cipher = ecc_cipher_array;
+/*    for x in aeskey_array.clone().iter() {
+        println!("{}", x);
+    }*/
 
     println!("compute aes encryption for PatientID!");
     let mut ciphertext_vec2: Vec<u8> = vec![0; SGX_AESGCM_KEY_SIZE];
@@ -496,6 +499,252 @@ pub extern "C" fn doctor_generate_rx(key: &[u8;16],
         }
     }
     //sgx_status_t::SGX_SUCCESS
+}
+
+#[no_mangle]
+pub extern "C" fn government_decode_rx(gov_sk:&[u8; SGX_ECP256_KEY_SIZE],
+                                       ciphertext: *const u8,
+                                       text_len: usize,
+                                       patient_iv: &[u8;12],
+                                       patient_mac: &[u8;16],
+                                       plaintext: *mut u8,
+                                       pk_gx: &[u8; SGX_ECP256_KEY_SIZE],
+                                       pk_gy: &[u8; SGX_ECP256_KEY_SIZE],
+                                       signature_x: &[u32; SGX_NISTP_ECP256_KEY_SIZE],
+                                       signature_y: &[u32; SGX_NISTP_ECP256_KEY_SIZE],
+                                       ecc_pk_gx: &[u8; SGX_ECP256_KEY_SIZE],
+                                       ecc_pk_gy: &[u8; SGX_ECP256_KEY_SIZE],
+                                       ecc_cipher: &[u8; SGX_AESGCM_KEY_SIZE],
+                                       key_iv: &[u8;12],
+                                       key_ciphertext: *const u8,
+                                       key_mac: &[u8;16]
+                                       ) -> sgx_status_t {
+
+    let ecc_state = SgxEccHandle::new();
+    let res = ecc_state.open();
+    match res {
+       Err(x) => {
+           return x;
+       }
+       Ok(()) => {
+       }
+    }
+
+    println!("government_decode_rx invoked!");
+    println!("get government private key!");
+    let mut government_sk: sgx_ec256_private_t = sgx_ec256_private_t::default();
+    government_sk.r = *gov_sk;
+
+    println!("get temporary public key!");
+    let mut tmp_pk: sgx_ec256_public_t = sgx_ec256_public_t::default();
+    tmp_pk.gx = *ecc_pk_gx;
+    tmp_pk.gy = *ecc_pk_gy;
+    //tmp_pk.gx = *pk_gx;
+    //tmp_pk.gy = *pk_gy;
+    /*for x in tmp_pk.gx.clone().iter() {
+        println!("{}", x);
+    }
+    for x in tmp_pk.gy.clone().iter() {
+        println!("{}", x);
+    }*/
+
+    println!("generate derived key!");
+    let res = ecc_state.compute_shared_dhkey(&government_sk, &tmp_pk);
+    let ecc_drived_key: sgx_ec_key_128bit_t;
+    match res {
+        Ok(x) => {
+            println!("compute_shared_dhkey succeed!");
+            let ret = derive_key(&x, &EC_SMK_LABEL);
+            match ret {
+                Ok(y) => {
+                    ecc_drived_key = y;
+                }
+                Err(e) => return e
+            }
+        }
+        Err(e) => {
+            println!("Error!!!!!!!!");
+            return e
+        }
+    }
+
+    println!("compute ecc decryption for aes temporary key!");
+    let mut tmp_aeskey: [u8; SGX_AESGCM_KEY_SIZE] = [0; SGX_AESGCM_KEY_SIZE];
+    let mut idx = 0;
+    while idx < SGX_AESGCM_KEY_SIZE {
+        tmp_aeskey[idx] = ecc_drived_key[idx] ^ ecc_cipher[idx];
+        idx = idx + 1;
+    }
+
+    println!("AES decryption for patientID!");
+    let mut patientid: [u8; SGX_AESGCM_KEY_SIZE] = [0; SGX_AESGCM_KEY_SIZE];
+    let ciphertext_slice2 = unsafe { slice::from_raw_parts(key_ciphertext, SGX_AESGCM_KEY_SIZE) };
+    {
+        let text_len = SGX_AESGCM_KEY_SIZE;
+        let mut plaintext_vec: Vec<u8> = vec![0; text_len];
+        // Second, for data with known length, we use array with fixed length.
+        let aad_array: [u8; 0] = [0; 0];
+
+        if ciphertext_slice2.len() != text_len {
+            return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+        }
+
+        let plaintext_slice = &mut plaintext_vec[..];
+        println!("AES decryption for patientID! {}, {}",
+                  ciphertext_slice2.len(),
+                  plaintext_slice.len());
+
+        // After everything has been set, call API
+        let result = rsgx_rijndael128GCM_decrypt(&tmp_aeskey,
+                                                 &ciphertext_slice2,
+                                                 key_iv,
+                                                 &aad_array,
+                                                 key_mac,
+                                                 plaintext_slice);
+
+        println!("rsgx calling returned!");
+
+        // Match the result and copy result back to normal world.
+        match result {
+            Err(x) => {
+                return x;
+            }
+            Ok(()) => {
+                //patientid = plaintext_slice;
+                let mut idx = 0;
+                while idx < SGX_AESGCM_KEY_SIZE {
+                    patientid[idx] = plaintext_slice[idx];
+                    idx = idx + 1;
+                }
+            }
+        }
+    }
+
+    println!("decrypt patient info!");
+    let ciphertext_slice = unsafe { slice::from_raw_parts(ciphertext, text_len) };
+    let mut plaintext_vec: Vec<u8> = vec![0; text_len];
+
+    // Second, for data with known length, we use array with fixed length.
+    let aad_array: [u8; 0] = [0; 0];
+
+    if ciphertext_slice.len() != text_len {
+        return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+    }
+
+    let plaintext_slice = &mut plaintext_vec[..];
+    println!("decrypt patient info prepared! {}, {}",
+              ciphertext_slice.len(),
+              plaintext_slice.len());
+
+    // After everything has been set, call API
+    let result = rsgx_rijndael128GCM_decrypt(&patientid,
+                                             &ciphertext_slice,
+                                             patient_iv,
+                                             &aad_array,
+                                             patient_mac,
+                                             plaintext_slice);
+
+    println!("rsgx calling returned!");
+
+    // Match the result and copy result back to normal world.
+    match result {
+        Err(x) => {
+            return x;
+        }
+        Ok(()) => {
+            unsafe {
+                ptr::copy_nonoverlapping(plaintext_slice.as_ptr(),
+                                         plaintext,
+                                         text_len);
+            }
+        }
+    }
+
+    println!("generate record!");
+    let mut rx: Vec<u8> = vec![0; patient_iv.len()
+                                //+ text_len
+                                + ciphertext_slice.len()
+                                + patient_mac.len()
+                                + ecc_pk_gx.len()
+                                + ecc_pk_gy.len()
+                                + ecc_cipher.len()
+                                + key_iv.len()
+                                + ciphertext_slice2.len()
+                                + key_mac.len()];
+    let mut rx_cnt = 0;
+    for x in patient_iv.clone().iter() {
+        rx[rx_cnt] = *x;
+        rx_cnt = rx_cnt + 1;
+    }
+    for x in ciphertext_slice.clone() {
+        rx[rx_cnt] = *x;
+        rx_cnt = rx_cnt + 1;
+    }
+    for x in patient_mac.clone().iter() {
+        rx[rx_cnt] = *x;
+        rx_cnt = rx_cnt + 1;
+    }
+    for x in ecc_pk_gx.clone().iter() {
+        rx[rx_cnt] = *x;
+        rx_cnt = rx_cnt + 1;
+    }
+    for x in ecc_pk_gy.clone().iter() {
+        rx[rx_cnt] = *x;
+        rx_cnt = rx_cnt + 1;
+    }
+    for x in ecc_cipher.clone().iter() {
+        rx[rx_cnt] = *x;
+        rx_cnt = rx_cnt + 1;
+    }
+    for x in key_iv.clone().iter() {
+        rx[rx_cnt] = *x;
+        rx_cnt = rx_cnt + 1;
+    }
+    for x in ciphertext_slice2 {
+        rx[rx_cnt] = *x;
+        rx_cnt = rx_cnt + 1;
+    }
+    for x in key_mac.clone().iter() {
+        rx[rx_cnt] = *x;
+        rx_cnt = rx_cnt + 1;
+    }
+    let rx_slice = &mut rx.clone()[..];
+
+    println!("get public key for signature verification!");
+    let mut public: sgx_ec256_public_t = sgx_ec256_public_t::default();
+    public.gx = *pk_gx;
+    public.gy = *pk_gy;
+
+    println!("get signature!");
+    let mut signature: sgx_ec256_signature_t = sgx_ec256_signature_t::default();
+    signature.x = *signature_x;
+    signature.y = *signature_y;
+    /*for x in public.gy.clone().iter() {
+        println!("{}", *x);
+    }*/
+
+    println!("verify signature!");
+    let ecc_state = SgxEccHandle::new();
+    let res = ecc_state.open();
+    match res {
+        Err(x) => {
+            return x;
+        }
+        Ok(()) => {
+        }
+    }
+    let sign_ret = ecc_state.ecdsa_verify_slice::<u8>(rx_slice, &public, &signature);
+    match sign_ret {
+        Err(x) => {
+            return x;
+        }
+        Ok(true) => {
+            sgx_status_t::SGX_SUCCESS
+        }
+        Ok(false) => {
+            sgx_status_t::SGX_ERROR_INVALID_SIGNATURE
+        }
+    }
 }
 
 #[no_mangle]

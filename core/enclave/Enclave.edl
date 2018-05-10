@@ -102,6 +102,24 @@ enclave {
                                                 [in] uint8_t key_mac[16]
                                                 );
 
+        public sgx_status_t government_decode_rx([in] uint8_t gvkey[32],
+                                                [in, size=len] const uint8_t* ciphertext,
+                                                size_t len,
+                                                [in] uint8_t iv[12],
+                                                [in] uint8_t mac[16],
+                                                [out, size=len] uint8_t* plaintext,
+                                                [in] uint8_t pk_gx[32],
+                                                [in] uint8_t pk_gy[32],
+                                                [in] uint32_t sig_x[8],
+                                                [in] uint32_t sig_y[8],
+                                                [in] uint8_t pk_gx2[32],
+                                                [in] uint8_t pk_gy2[32],
+                                                [in] uint8_t ecc_cipher[16],
+                                                [in] uint8_t key_iv[12],
+                                                [in, size=len] uint8_t* key_ciphertext,
+                                                [in] uint8_t key_mac[16]
+                                                );
+
         /* public sgx_status_t aes_cmac([in, size=len] const uint8_t* text,
                                      size_t len,
                                      [in] uint8_t key[16],
