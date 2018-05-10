@@ -76,7 +76,7 @@ Inside the docker, first we runs the AESM service:
 /opt/intel/sgxpsw/aesm/aesm_service &
 ```
 
-Then we go to `samplecode/BCSM_SGX`, run `make`, and go to `bin`. The demo program is `./app`.
+Then we go to `samplecode/BCSM_SGX`, run `make`, and go to `bin`. The demo program is `./app 2>LOG2`.
 
 ## Acknowledgment
 
