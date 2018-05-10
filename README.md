@@ -11,13 +11,14 @@ The implementation is based on [Baidu's Rust SGX SDK](https://github.com/baidu/r
 **Acknowledgment:** Weikeng Chen, UC Berkeley.
 
 ## Motivation
-We consider a world with digital prescription (Rx). There are mainly three parties as follows:
+We consider a world with digital prescription (Rx). There are mainly five parties as follows:
 - **Doctor:** 
-  - *Encryption:* A doctor uses the patient's ID (such as the combinition of patient's name, birthday and SSN) to encrypt the Rx
+  - *Encryption:* A doctor uses the patient's ID (such as the combinition of patient's name, birthday and SSN) to encrypt the Rx. Also a doctor must also encrypt patient's ID using federal government's and corresponding state government's public encryption key so that governments can monitor those Rxs.
   - *Signing:* A doctor has a pair of signing key *SK* and *VK*. The doctor commits the *VK*	to a key transparency system, like [CONIKS](https://github.com/coniks-sys/coniks-go). The doctor uses *SK* to sign a Rx. When a Rx is signed by a doctor with valid license (namely, *VK* is active in CONIKS), the Rx becomes valid. 
-- *Patient:* A patient goes to a doctor for a digital Rx. The patient then brings the digital Rx to the pharmacy to pick up the medicine. In our course project, we focus on controlled substances.
-- *Pharmacy:* A pharmacy sells prescripted medicine under a doctor's Rx. The pharmacy gets the doctor's *VK* from CONIKS and checks whether the signature is valid (although on-chain Rx should already have a valid doctor signature). If the signature is valid, the pharmacy gives the medicine.
-- *Government:* A government 
+- **Miner:** A signed Rx will be sent to the miner and stored on the permissioned blockchain like [Hyperledger Fabric](https://www.hyperledger.org/projects/fabric). Miner gets the doctor's *VK* from CONIKS and checks whether the signature is valid (although on-chain Rx should already have a valid doctor signature). If the signature is valid, the Rx will be settled on blockchain.
+- **Patient:** A patient goes to a doctor for a digital Rx. The patient then brings the digital Rx to the pharmacy to pick up the medicine. In our course project, we focus on controlled substances.
+- **Pharmacy:** A pharmacy sells prescripted medicine under a doctor's Rx. A pharmacy downloads the Rx from blockchain.  
+- **Government:** A federal government is able to decrypt all Rxs on blockchain, whereas a state government can only monitor Rxs within the state.
 
 Now, we consider an adversary:
 - *Adversary:* An adversary wants to order controlled substances from government approved pharmacies (with the market price) and sells in the underground market. In order to get controlled substances from the pharmacies, the adversary needs to obtain many valid Rx. To do that without explicitly colluding with a doctor, the adversary needs to get a doctor signing key.
