@@ -418,13 +418,13 @@ int SGX_CDECL main(int argc, char *argv[])
     fprintf(stderr, "record_sig ");
     for(i = 0; i < 8; i ++) {
         printf("%08x", sig_x[i]);
-        fprintf(stderr, "%02x", sig_x[i]);
+        fprintf(stderr, "%08x", sig_x[i]);
     }
     printf("\n");
     fprintf(stderr, " ");
     for(i = 0; i < 8; i ++) {
         printf("%08x", sig_y[i]);
-        fprintf(stderr, "%02x", sig_y[i]);
+        fprintf(stderr, "%08x", sig_y[i]);
     }
     printf("\n");
     fprintf(stderr, "\n");
