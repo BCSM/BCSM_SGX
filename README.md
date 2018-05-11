@@ -50,6 +50,8 @@ We do not consider the doctor computing is fully stolen, as the doctor will disc
 
 This implementation focuses on the cryptographic functions rather than the remote attestation, the latter of which is not implemented because the application for a IAS-approved certificate is pending. 
 
+For symmetric encryption and signature scheme, we use the standard API provided by Baidu's Rust SGX SDK. For asymetric encryption, there is no library available. So we combine *compute_shared_dhkey* function from *sgx_tcrypto* lib and *derive_key* fucntion from *sgx_tdh* lib to achieve the ECC public key encryption scheme.
+
 ## Installation
 Readers should build the execution environment following the instructions of [rust-sgx-sdk](https://github.com/baidu/rust-sgx-sdk).
 
